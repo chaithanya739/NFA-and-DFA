@@ -1,0 +1,603 @@
+# NOTE: You can find where you need to complete the code by searching for "COMPLETE ME"
+
+# Used to represent our resulting DFA in Part 3
+# Note that you can access all of the elements of the dfa by simply doing dfaObject.*, where * is any of the members of the class
+# In order to visualize your DFA, 
+# you can simply call print(dfaObject), and it will print a representation of the DFA (useful for debugging)
+#
+# Example to initialize it:
+# dfaObject = DFA(['a', 'b'], [1,2,3], 1, [3], [(1, 'a', 2), (2, 'b', 3)])
+#
+# Which corresponds to the DFA:
+#
+#  ->(1)--a-->(2)--b-->((3))
+#
+
+# Helper method for Part 2 and DFA
+# Turns a string into a list of characters
+
+def explode_string(s):
+    return [c for c in s]
+
+class DFA:
+    def __init__(self, alphabet, states, start_state, final_states, transitions):
+        self.alphabet = alphabet
+        self.states = states
+        self.start_state = start_state
+        self.final_states = final_states
+        self.transitions = transitions
+
+    def __repr__(self):
+        return f'Alphabet: {self.alphabet}\nStates: {self.states}\nStart State: {self.start_state}\nFinal States: {self.final_states}\nTransitions: {self.transitions}'
+
+    # Checks if DFA accepts the string s
+    def accepts(self, s):
+        lst = explode_string(s)
+        currState = self.start_state
+
+        while lst:
+           nextTransition = lst.pop(0)
+
+           if nextTransition not in self.alphabet:
+               return False
+
+           for fromState, transitionChar, toState in self.transitions:
+               if fromState == currState and transitionChar == nextTransition:
+                   currState = toState
+                   break
+
+        if lst == [] and currState in self.final_states:
+            return True
+
+        return False
+
+# ============================ Regular Expression Classes ======================================== #
+# These are used to represent the tree of our regular expression
+# Its members and representation can be accessed and printed similarly to the DFA above
+
+# Represents a single character regular expression, such as:
+# 'a' -> Char('a')
+# 'b' -> Char('b')
+# '#' -> Char('#')
+# Instantiated like so: Char('a'), Char('b'), etc.
+class Char:
+    def __init__(self, c):
+        self.c = c
+
+    def __repr__(self):
+        return f'Char({self.c})'
+
+# Represents the concatenation of two regular expressions, such as
+# 'ab' -> Concatenation(Char('a'), Char('b'))
+# '(a|b)b -> Concatenation(Union(Char('a'), Char('b')), Char('b'))
+class Concatenation:
+    def __init__(self, r1, r2):
+        self.r1 = r1
+        self.r2 = r2
+
+    def __repr__(self):
+        return f'Concatenation({repr(self.r1)}, {repr(self.r2)})'
+
+# Represents the union of two regular expressions, such as
+# '(a|b)' -> Union(Char('a'), Char('b'))
+# '((a|b)|(b|a))' -> Union(Union(Char('a'), Char('b')), Union(Char('b'), Char('a')))
+class Union:
+    def __init__(self, r1, r2):
+        self.r1 = r1
+        self.r2 = r2
+
+    def __repr__(self):
+        return f'Union({repr(self.r1)}, {repr(self.r2)})'
+
+# Represents the * (Kleene Star) in regular expressions, such as
+# 'a*' -> Kleene(Char('a'))
+# '(a|b)*' -> Kleene(Union(Char('a'), Char('b')))
+# 'ab*' -> Concatenation(Char('a'), Kleene(Char('b')))
+class Kleene:
+    def __init__(self, r):
+        self.r = r
+
+    def __repr__(self):
+        return f'Kleene({repr(self.r)})'
+# ============================ End of Regular Expression Classes ======================================== #
+
+# ============================ Part 2 Helper Methods ==================================================== #
+
+# Given a list of tokens, returns the next token in the list
+# NOTE: It will fail if the list is empty
+def lookahead(toks):
+    if toks == []:
+        raise Exception('No more tokens to look at! @ lookahead')
+
+    return toks[0]
+
+# Given a single token and a list of tokens, it will check that the first token in the list is that token
+# If it is, it will remove it from the list and return the rest of the list
+# Otherwise, it will fail
+def match_token(toks, token):
+    if toks == [] or toks[0] != token:
+        if toks == []:
+            raise Exception(f'Cannot match tokens if none left! @ match_token({toks}, {token})')
+
+        raise Exception(f'Token did not match what was expected! Expected {token} but got {toks[0]}')
+
+    toks.pop(0)
+    return toks
+
+# ======================= End of Part 2 Helper Methods ================================================ #
+#
+# Expr -> Term | Term '|' Expr
+# Term -> Factor | Factor Term
+# Factor -> Atom | Atom*
+# Atom -> Char | (Expr)
+# Char -> a|b|#
+
+# The grammar was taken from: https://github.com/deniskyashif/regexjs/blob/master/src/parser2.js
+# Notice that it starts with Union, then the next rule is Concatenation, then Kleene Star, finally characters or a nested regular expression
+
+# Also, note that each one of these functions return a tuple: A list of remaining tokens, and the resulting expression
+# Thus, as you call the functions recursively, remember to always save both as you go. Here's an example of how a call would work
+#
+# toks, expr = parse_Factor(toks)
+#
+# This will effectively overwrite the tokens with the remaining ones (what you want) and give you the constructed expression thus far.
+# You can see this being used in parse_Term and parse_Atom, yet the implementation of parse_Expr and finalizing parse_Atom is up to you.
+
+# Corresponds to Expr rule.
+# HINT:
+# Parse Term regardless. If the following token is '|', theb
+# match it, parse_Expr, and return the Union of both.
+# Otherwise, just return term.
+#
+# HINT 2: Look at how parse_Term and parse_Factor are implemented for reference on how to implement it
+# NOTE: Remove pass after inserting your code
+def parse_Expr(toks):
+    toks, expr1 = parse_Term(toks)
+    
+    if toks != [] and lookahead(toks) == '|':
+        toks = match_token(toks,'|')
+        toks, expr2 = parse_Expr(toks)
+        return(toks, Union(expr1, expr2))
+
+    return(toks, expr1)
+
+def parse_Term(toks):
+    toks, expr1 = parse_Factor(toks)
+
+    if toks != [] and lookahead(toks) not in [')', '|']:
+        toks, expr2 = parse_Term(toks)
+        return (toks, Concatenation(expr1, expr2))
+
+    return (toks, expr1)
+
+def parse_Factor(toks):
+    toks, expr1 = parse_Atom(toks)
+
+    if toks != [] and lookahead(toks) == '*':
+        toks = match_token(toks, '*')
+        return (toks, Kleene(expr1))
+
+    return (toks, expr1)
+
+# Two cases are missing from parse_Atom
+# Complete the code so that it will parse the token 'b' and the token '#'
+# HINT:
+# It should be very similar to the way 'a' is parsed
+# NOTE: The last elif corresponds to parsing the rule '(Expr)'
+def parse_Atom(toks):
+    if lookahead(toks) == 'a':
+        toks = match_token(toks, 'a')
+        return (toks, Char('a'))
+
+    if lookahead(toks) == 'b':
+        toks = match_token(toks, 'b')
+        return (toks, Char('b'))
+
+    if lookahead(toks) == '#':
+        toks = match_token(toks,'#')
+        return (toks, Char('#'))
+
+    elif lookahead(toks) == '(':
+        toks = match_token(toks, '(')
+        toks, expr = parse_Expr(toks)
+        toks = match_token(toks, ')')
+
+        return (toks, expr)
+
+    raise Exception('Not a valid regular expression')
+
+# =========================================== BEGINNING OF PART 3 ================================ #
+# Below is the implementation for RegexTree, a wrapper class from the resulting tree in PART 2.
+# If you look at the tree that is generated by Part 2, you'll notice that it is right-leaning (since we're using right recursion)
+# The problem is that we need it left-leaning, in order to use the method from class. This is done by flipTree(), which you DONT HAVE TO IMPLEMENT.
+# There is also a helper function called labelTree(), which will label each leaf, which will prove useful in computing our DFA.
+#
+# Note that you can simply initialize the tree by doing something like newTree = RegexTree(part2Result)
+class RegexTree:
+    def __init__(self, tree):
+        # The tree itself
+        self.tree = tree
+
+        # A mapping from Nodes, to their firstPos, lastPos and nullable
+        self.nodeToPositionsTable = {}
+
+        # A mapping from positions to characters (that is the labels we add to leafs)
+        self.positionToCharTable = {}
+
+        # The table that we use to store all results from followPos
+        self.followPosTable = {}
+
+        # Fresh variable for generating labels
+        self.fresh = 0
+
+        # Once you initialize your tree, it will be automatically made as left-leaning and labeled
+        # Feel free to print a before and after to see the difference
+        self.flipTree()
+        self.labelTree()
+
+        # Run the self.generateTable() function to test your implementation
+        # NOTE: It will NOT WORK until firstPos, lastPos, nullable and followPos are fully implemented!
+        self.generateTable()
+
+    def __repr__(self):
+        return f'RegexTree of:\nTree: {self.tree}\nNode to Positions Table: {self.nodeToPositionsTable}\nPosition to Char Table: {self.positionToCharTable}\nfollowPos Table: {self.followPosTable}\nFresh: {self.fresh}'
+
+    # Helper function that flips right-leaning tree into left-leaning
+    # NO NEED TO CODE HERE
+    # Explanation:
+    #
+    # Takes a tree like
+    #
+    #         O
+    #        / \
+    #       a   O
+    #          / \
+    #         b   O
+    #            / \
+    #           b   a
+    #
+    # Corresponding to regular expression 'abba' and returns the tree
+    #
+    #                O
+    #               / \
+    #              O   a
+    #             / \
+    #            O   b
+    #           / \
+    #          a   b
+    #
+    # Which corresponds to the same regular expression, but leans in the oppposite direction
+    def flipTree(self):
+        def helper(tree):
+            match tree:
+                case Char(c=x):
+                    return Char(x)
+                case Concatenation(r1=r1, r2=r2):
+                    match r2:
+                        case Concatenation(r1=r2r1, r2=r2r2):
+                            newNode = Concatenation(r1, r2r1)
+                            return helper(Concatenation(newNode, r2r2))
+                        case other:
+                            return Concatenation(r1, r2)
+                case Union(r1=r1, r2=r2):
+                    return Union(helper(r1), helper(r2))
+                case Kleene(r=r):
+                    return Kleene(helper(r))
+
+            print(f'ERROR: {tree} @ flipTree matches nothing')
+        print(self.tree)
+
+        self.tree = helper(self.tree)
+        print(self.tree)
+
+
+    # Helper function that labels a tree
+    # NO NEED TO CODE HERE
+    # Explanation:
+    #
+    # Takes a tree like
+    #
+    #                O
+    #               / \
+    #              O   a
+    #             / \
+    #            O   b
+    #           / \
+    #          a   b
+    #
+    # Which corresponds to the regular expression 'abba' and returns the tree
+    #
+    #                O
+    #               / \
+    #              O (4,a)
+    #             / \
+    #            O (3,b)
+    #           / \
+    #       (1,a) (2,b)
+    #
+    def labelTree(self):
+        def helper(tree):
+            match tree:
+                case Char(c=x):
+                    self.fresh += 1
+                    self.positionToCharTable[self.fresh] = x
+                    self.followPosTable[self.fresh] = set()
+                    return (self.fresh, tree)
+                case Concatenation(r1=r1, r2=r2):
+                    return Concatenation(helper(r1), helper(r2))
+                case Union(r1=r1, r2=r2):
+                    return Union(helper(r1), helper(r2))
+                case Kleene(r=r):
+                    return Kleene(helper(r))
+
+        self.tree = helper(self.tree)
+
+    # YOU WILL HAVE TO CODE HERE
+    # Takes the flipped and labeled tree, and generates the firstpos, lastpos, followpos and nullable
+    # Notice that most of the implementaton is given. All you have to do is write lastPos and nullable.
+    # HINT: lastPos is almost exactly the same as firstPos, but you have to flip the cases in the Concatenation case
+    # HINT2: Please refer to the notes and provided table from class in order to complete the blanks
+    def generateTable(self):
+        table = self.nodeToPositionsTable
+        # firstpos is implemented for you. You may use it as reference in order to implement lastPos
+
+        def firstPos(node):
+            if node in table and 'firstPos' in table[node]:
+                return table[node]['firstPos']
+            match node:
+                case (label, Char(c=x)):
+                    if node not in table:
+                        table[node] = {}
+                    table[node]['firstPos'] = [label]
+                    return [label]
+                case Concatenation(r1=r1, r2=r2):
+                    if node not in table:
+                        table[node] = {}
+                    f1 = firstPos(r1)
+                    f2 = firstPos(r2)
+                    if nullable(r1):
+                        res = list(set(f1).union(set(f2)))
+                        table[node]['firstPos'] = res
+                        return res
+                    table[node]['firstPos'] = f1
+                    return f1
+                case Union(r1=r1, r2=r2):
+                    if node not in table:
+                        table[node] = {}
+                    f1 = firstPos(r1)
+                    f2 = firstPos(r2)
+                    res = list(set(f1).union(set(f2)))
+                    table[node]['firstPos'] = res
+                    return res
+                case Kleene(r=r):
+                    if node not in table:
+                        self.nodeToPositionsTable[node] = {}
+                    f = firstPos(r)
+                    table[node]['firstPos'] = f
+                    return f
+
+        # HINT: lastPos is almost exactly the same as firstPos, but you have to flip the cases in the Concatenation case
+        def lastPos(node):
+            if node in table and 'lastPos' in table[node]:
+                return table[node]['lastPos']
+            match node:
+                case (label, Char(c=x)):
+                    if node not in table:
+                        table[node] = {}
+                    table[node]['lastPos'] = [label]
+                    return [label]
+                case Concatenation(r1=r1, r2=r2):
+                    if node not in table:
+                        table[node] = {}
+                    f1 = lastPos(r1)
+                    f2 = lastPos(r2)
+                    if nullable(r2):
+                        res = list(set(f2).union(set(f1)))
+                        table[node]['lastPos'] = res
+                        return res
+                    table[node]['lastPos'] = f2
+                    return f2
+                case Union(r1=r1, r2=r2):
+                    if node not in table:
+                        table[node] = {}
+                    f1 = lastPos(r1)
+                    f2 = lastPos(r2)
+                    res = list(set(f1).union(set(f2)))
+                    table[node]['lastPos'] = res
+                    return res
+                case Kleene(r=r):
+                    if node not in table:
+                        self.nodeToPositionsTable[node] = {}
+                    f = lastPos(r)
+                    table[node]['lastPos'] = f
+                    return f
+            
+
+        # NOTHING TO CODE HERE - Provided for you
+        def followPos(node):
+            match node:
+                case Concatenation(r1=r1, r2=r2):
+                    l1 = lastPos(r1)
+                    for label in self.positionToCharTable.keys():
+                        if label in l1:
+                            f2 = firstPos(r2)
+                            self.followPosTable[label] = list(set(self.followPosTable[label]).union(f2))
+
+                    followPos(r1)
+                    followPos(r2)
+
+                case Kleene(r=r):
+                    l = lastPos(r)
+                    for label in self.positionToCharTable.keys():
+                        if label in l:
+                            f = firstPos(r)
+                            self.followPosTable[label] = list(set(self.followPosTable[label]).union(f))
+
+                    followPos(r)
+
+                case Union(r1=r1, r2=r2):
+                    followPos(r1)
+                    followPos(r2)
+
+        # Comment out the code and complete the #BLANK? statements, where each blank corresponds to some code
+        # HINT: You'll notice some blanks have the same number, that means they would have the same code
+        def nullable(node):
+            if node in table and 'nullable' in table[node]:
+                return table[node]['nullable']
+            match node:
+                case (label, Char(c=x)):
+                    table[node]['nullable'] = False
+                    return False
+
+                case Concatenation(r1=r1, r2=r2):
+                    n1 = nullable(r1)
+                    n2 = nullable(r2)
+                    table[node]['nullable'] = n1 and n2
+                    return n1 and n2
+
+                case Union(r1=r1, r2=r2):
+                    n1 = nullable(r1)
+                    n2 = nullable(r2)
+                    table[node]['nullable'] = n1 or n2
+                    return n1 or n2
+
+                case Kleene(r=r):
+                    table[node]['nullable'] = True
+                    return True
+                    
+        # NOTHING TO CHANGE HERE
+        firstPos(self.tree)
+        lastPos(self.tree)
+        followPos(self.tree)
+
+    # YOU HAVE TO CODE HERE
+    # Most of the work in Part 3 will be done here. We have now generated a table with all the necessary information to make our DFA
+    # In order to do it, we have to follow the following steps:
+    # Step 1. Compute the start state of the DFA, i.e the firstPos(root). This is already done for you.
+    # Step 2. Instantiate the workQueue, that is to say, the list of states we are not done processing. Also done for you.
+    # Step 3. For every letter of the alphabet, compute the followpos of the positions that match THAT LETTER. You'll have to implement this.
+    #   Step 3.1. Take all of these followpos and union them together. This will result in your (possibly) new state
+    #   Step 3.2. Check if this new state is in the states and the workQueue, if it is in neither, add it to both. Otherwise, don't.
+    #   Step 3.3. Add the new transition, where the transition is (currState, letter, newGeneratedState)
+    # Step 4. After you're done with all this computation, determine which states are final states (you'll need to fill this in)
+    # Step 5. Return the newly generated DFA
+    def toDFA(self):
+
+        # Computing the initial values for our DFA
+        sigma = ['a','b']
+        startState = self.nodeToPositionsTable[self.tree]['firstPos']
+        states = [startState]
+        transitions = []
+        finalStates = []
+
+        workQueue = [startState]
+        
+
+        # While there are still states in the workqueue
+        while workQueue:
+            # Get the next one
+            currState = workQueue.pop(0)
+
+            # For every letter in the alphabet
+            for letter in sigma:
+
+                # Our list states we want the followpos of
+                statesToCheck = []
+                for state in currState:
+                    if letter == self.positionToCharTable[state]:
+                        statesToCheck.append(state)
+                # Find the followpos for all of them and union them together
+                res = set()
+                for state in statesToCheck:
+                    res = res.union(set(self.followPosTable[state]))
+                # Turn into a list for consistency
+                res = list(res)
+                # If we have not seen this newly generated state before, add it to the workqueue and the list of states
+                if res not in states and res not in workQueue:
+                    states.append(res)
+                    workQueue.append(res)
+                # Add the new transition. Note we do this regardless of whether the state is new or not.
+                l = []
+                l.append(currState)
+                l.append(letter)
+                l.append(res)
+                transitions.append(l)
+        print(transitions)
+        print(self.nodeToPositionsTable)
+
+        # Find which ones are final states
+        for state in states:
+            for singleState in state:
+                followPosValue = self.followPosTable[singleState]
+                if len(followPosValue) == 0 and state not in finalStates:
+                    finalStates.append(state)
+        
+
+        return DFA(sigma, states, startState, finalStates, transitions)
+
+# Helper method to check if two trees are the same
+def sameTree(t1, t2):
+    match t1, t2:
+        case ((l1, Char(c=x)), (l2, Char(c=y))):
+            if l1 == l2 and x == y:
+                return True
+
+            print(f'{t1} is not the char as {t2}')
+            return False
+
+        case (Concatenation(r1=r1x, r2=r2x), Concatenation(r1=r1y, r2=r2y)):
+            return sameTree(r1x, r1y) and sameTree(r2x, r2y)
+        case (Union(r1=r1x, r2=r2x), Union(r1=r1y, r2=r2y)):
+            return sameTree(r1x, r1y) and sameTree(r2x, r2y)
+        case (Kleene(r=x), Kleene(r=y)):
+            return sameTree(x, y)
+        case other:
+            print(f'{t1} is not the same tree as {t2}')
+            return False
+
+# Tests the implementation of Part 2 - i.e the parser
+def testingPart2():
+    correctTrees = [
+        Concatenation(Kleene(Union(Kleene((1, Char('a'))), Kleene((2, Char('b'))))), (3, Char('#'))),
+        Concatenation(Concatenation(Concatenation(Kleene(Union((1, Char('a')), (2, Char('b')))), (3, Char('a'))), (4, Char('b'))), (5, Char('#'))),
+        Concatenation(Concatenation(Concatenation(Concatenation(Concatenation(Concatenation(Concatenation(Kleene(Union((1, Char('a')), (2, Char('b')))), (3, Char('a'))), (4, Char('b'))), Union((5, Char('a')), (6, Char('b')))), Kleene((7, Char('a')))), (8, Char('b'))), (9, Char('b'))), (10, Char('#')))
+    ]
+
+    regex = ['(a*|b*)*#', '(a|b)*ab#', '(a|b)*ab(a|b)a*bb#']
+    for i, reg in enumerate(regex):
+        print(f'Test {i} - Regex: {reg}')
+        toks, tree = parse_Expr(explode_string(reg))
+        tree = RegexTree(tree)
+
+        if sameTree(tree.tree,correctTrees[i]):
+            print(f'Test {i} - PASSED')
+        else:
+            print(f'Test {i} - FAILED')
+            print(f'Expected {correctTrees[i]} but got {tree}')
+
+# Tests the implmenetation of Part 3 - i.e the conversion to DFA
+def testingPart3():
+    regex = ['(a*|b*)*#', '(a|b)*ab#', '(a|b)*ab(a|b)a*bb#']
+    testCases = {}
+    testCases['(a*|b*)*#'] = [('a', True), ('b', True), ('', True), ('aaaaaaaaabbbbbbb', True), ('#', False)]
+    testCases['(a|b)*ab#'] = [('ab', True), ('a', False), ('b', False), ('aaaaaaaaaaaaab', True), ('bb', False)]
+    testCases['(a|b)*ab(a|b)a*bb#'] = [('ababb', True), ('aaaaaabaaaaabb', True), ('bbaabbabbbb', True)]
+
+    for i, reg in enumerate(regex):
+        print(f'Test {i} - Regex {reg}')
+        toks, tree = parse_Expr(explode_string(reg))
+        tree = RegexTree(tree)
+        dfa = tree.toDFA()
+
+        for testCase in testCases[reg]:
+            if dfa.accepts(testCase[0]) != testCase[1]:
+               print(f'Failure @ Test {i}, expected DFA to say {testCase[1]} of {testCase[0]} but said {not testCase[1]}')
+
+        print(f'Test {i} - PASSED')
+
+def testing():
+    testingPart2()
+    print('=' * 80)
+    testingPart3()
+
+testing()
